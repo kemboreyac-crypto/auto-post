@@ -113,7 +113,8 @@ def post_to_single_page(page_id: str, page_token: str, message: str,
 
             # Fallback: Download video locally then upload as binary source
             try:
-                temp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+                import tempfile
+                temp_dir = os.path.join(tempfile.gettempdir(), "fb_uploads")
                 os.makedirs(temp_dir, exist_ok=True)
                 temp_vid = os.path.join(temp_dir, f"fb_temp_{int(time.time())}.mp4")
                 dl_res = requests.get(video_url, stream=True, timeout=90)

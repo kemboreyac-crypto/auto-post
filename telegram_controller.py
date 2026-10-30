@@ -20,10 +20,14 @@ import time
 import requests
 import threading
 import re
+import tempfile
 from typing import Dict, Any, Optional
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MEDIA_TEMP_DIR = os.path.join(BASE_DIR, "temp_media")
+if os.environ.get("VERCEL") or not os.access(BASE_DIR, os.W_OK):
+    MEDIA_TEMP_DIR = os.path.join(tempfile.gettempdir(), "temp_media")
+else:
+    MEDIA_TEMP_DIR = os.path.join(BASE_DIR, "temp_media")
 os.makedirs(MEDIA_TEMP_DIR, exist_ok=True)
 
 # នាំចូល Services ក្នុងមូលដ្ឋាន

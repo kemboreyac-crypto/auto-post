@@ -21,10 +21,17 @@ import tiktok_service
 import telegram_controller
 import khmer_linguistic_sanitizer
 
+import tempfile
+
 app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
-UPLOAD_FOLDER = os.path.join(BASE_DIR, "temp_media")
+
+# Use /tmp on Vercel or read-only environments
+if os.environ.get("VERCEL") or not os.access(BASE_DIR, os.W_OK):
+    UPLOAD_FOLDER = os.path.join(tempfile.gettempdir(), "temp_media")
+else:
+    UPLOAD_FOLDER = os.path.join(BASE_DIR, "temp_media")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 def get_config():
