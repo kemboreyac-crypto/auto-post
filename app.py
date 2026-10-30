@@ -13,7 +13,7 @@ import re
 import json
 import time
 import requests
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, send_from_directory, Response
 
 import facebook_page_service
 import facebook_group_service
@@ -116,7 +116,11 @@ DASHBOARD_HTML = """
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>🚀 Social Broadcaster Control Hub</title>
+  <title>Post Automation - AC Media Hub</title>
+  <link rel="icon" type="image/png" href="/static/logo.png">
+  <link rel="apple-touch-icon" href="/static/logo.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#4f46e5">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Kantumruy+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -152,17 +156,61 @@ DASHBOARD_HTML = """
       padding-bottom: 16px;
       border-bottom: 1px solid var(--card-border);
       flex-wrap: wrap;
-      gap: 12px;
+      gap: 16px;
     }
-    .brand h1 {
+    .brand-box {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand-logo {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      object-fit: contain;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 3px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      flex-shrink: 0;
+    }
+    .brand-text h1 {
       font-size: 1.8rem;
       font-weight: 800;
       background: linear-gradient(135deg, #60a5fa, #c084fc);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
     }
-    .brand p { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
-    .nav-actions { display: flex; align-items: center; gap: 10px; }
+    .brand-text p { font-size: 0.85rem; color: var(--text-muted); margin-top: 2px; }
+    .nav-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    
+    .btn-install {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 12px;
+      padding: 10px 18px;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.35);
+      transition: all 0.25s ease;
+      animation: pulseInstall 2.5s infinite;
+    }
+    .btn-install:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.55);
+      background: linear-gradient(135deg, #059669, #047857);
+    }
+    @keyframes pulseInstall {
+      0%, 100% { box-shadow: 0 4px 15px rgba(16, 185, 129, 0.35); }
+      50% { box-shadow: 0 4px 22px rgba(16, 185, 129, 0.65); }
+    }
     
     .btn-settings {
       display: inline-flex;
@@ -656,19 +704,27 @@ DASHBOARD_HTML = """
   <div class="container">
     <!-- Top Navbar with Settings Button -->
     <div class="top-nav">
-      <div class="brand">
-        <h1>🚀 Social Broadcaster Control Hub</h1>
-        <p>ផ្ទាំងគ្រប់គ្រង និងផ្សព្វផ្សាយពហុបណ្ដាញ • Facebook Pages, Groups & TikTok</p>
+      <div class="brand-box">
+        <img src="/static/logo.png" alt="AC Logo" class="brand-logo">
+        <div class="brand-text">
+          <h1>Post Automation</h1>
+          <p>ផ្ទាំងគ្រប់គ្រង និងផ្សព្វផ្សាយពហុបណ្ដាញ • Facebook Pages & Groups</p>
+        </div>
       </div>
       <div class="nav-actions">
-        <div class="badge-bot">
-          <span>🤖</span> Telegram: <strong>@{{ bot_user }}</strong>
-        </div>
+        <!-- Install PWA Button (Auto-hidden if already installed on device) -->
+        <button type="button" class="btn-install" id="btnInstallApp" onclick="handlePwaInstall()" style="display: none;">
+          <span>📲</span>
+          <span>ដំឡើង App (Install)</span>
+        </button>
         <!-- Setting Button to Take Control -->
         <button type="button" class="btn-settings" id="openSettingsBtn" onclick="openSettingsModal()">
           <span>⚙️</span>
           <span>ការកំណត់ (Settings)</span>
         </button>
+        <div class="badge-bot">
+          <span>🤖</span> Telegram: <strong>@{{ bot_user }}</strong>
+        </div>
       </div>
     </div>
 
@@ -1376,6 +1432,75 @@ DASHBOARD_HTML = """
         handleFileSelected(document.getElementById('fileInput'));
       }
     });
+    // ================= PWA INSTALLATION CONTROLLER =================
+    let deferredPrompt = null;
+    const btnInstall = document.getElementById('btnInstallApp');
+
+    function isAppAlreadyInstalled() {
+      // 1. Detect if running inside installed standalone PWA
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches 
+                        || window.navigator.standalone === true 
+                        || document.referrer.includes('android-app://');
+      
+      // 2. Check localStorage flag if user previously installed on this device
+      const isStoredInstalled = localStorage.getItem('pwa_installed') === 'true';
+
+      return isStandalone || isStoredInstalled;
+    }
+
+    function checkInstallButtonVisibility() {
+      if (isAppAlreadyInstalled()) {
+        if (btnInstall) btnInstall.style.display = 'none';
+      }
+    }
+
+    // Capture install prompt event
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      // Do NOT show if already installed
+      if (!isAppAlreadyInstalled()) {
+        if (btnInstall) btnInstall.style.display = 'inline-flex';
+      }
+    });
+
+    // Detect when user completes installation
+    window.addEventListener('appinstalled', () => {
+      localStorage.setItem('pwa_installed', 'true');
+      if (btnInstall) btnInstall.style.display = 'none';
+      deferredPrompt = null;
+      showToast('🎉 បានដំឡើង Post Automation App លើអេក្រង់ដើមជោគជ័យ!');
+    });
+
+    async function handlePwaInstall() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          localStorage.setItem('pwa_installed', 'true');
+          if (btnInstall) btnInstall.style.display = 'none';
+        }
+        deferredPrompt = null;
+      } else {
+        // Fallback for iOS or already supported browsers
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        if (isIOS) {
+          alert('📱 របៀបដំឡើង Post Automation លើ iPhone / iPad៖\\n\\n1. ចុចប៊ូតុង Share (📤) ខាងក្រោម Browser\\n2. អូសចុះក្រោម រួចជ្រើសរើស «Add to Home Screen ➕ (បន្ថែមទៅអេក្រង់ដើម)»');
+        } else {
+          alert('💡 របៀបដំឡើង App៖\\n\\nសូមចុចលើសញ្ញា Menu ចុចបី (⋮) នៅជ្រុងខាងស្តាំលើនៃ Browser រួចជ្រើសរើស «Install App» ឬ «Add to Home screen»។');
+        }
+      }
+    }
+
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration error:', err));
+        checkInstallButtonVisibility();
+      });
+    } else {
+      checkInstallButtonVisibility();
+    }
   </script>
 </body>
 </html>
@@ -1419,6 +1544,64 @@ def index():
         selected_pages_count=len(selected_pages),
         connected_pages_count=len(connected) if connected else len(selected_pages)
     )
+
+@app.route("/manifest.json")
+def manifest():
+    """PWA Application Manifest with AC Logo"""
+    return jsonify({
+        "name": "Post Automation",
+        "short_name": "PostAuto",
+        "description": "Facebook Pages & Groups Multi-Broadcaster Hub with AI",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#0b0f19",
+        "theme_color": "#4f46e5",
+        "orientation": "portrait-primary",
+        "icons": [
+            {
+                "src": "/static/logo.png",
+                "sizes": "192x192",
+                "type": "image/png",
+                "purpose": "any maskable"
+            },
+            {
+                "src": "/static/logo.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any maskable"
+            }
+        ]
+    })
+
+@app.route("/sw.js")
+def service_worker():
+    """Lightweight Service Worker for PWA Installation"""
+    sw_code = """
+const CACHE_NAME = 'post-auto-cache-v1';
+self.addEventListener('install', (e) => {
+    self.skipWaiting();
+});
+self.addEventListener('activate', (e) => {
+    e.waitUntil(self.clients.claim());
+});
+self.addEventListener('fetch', (e) => {
+    e.respondWith(
+        fetch(e.request).catch(() => caches.match(e.request))
+    );
+});
+"""
+    return Response(sw_code, mimetype="application/javascript")
+
+@app.route("/static/<path:filename>")
+def serve_static(filename):
+    static_dir = os.path.join(BASE_DIR, "static")
+    return send_from_directory(static_dir, filename)
+
+@app.route("/logo.png")
+@app.route("/favicon.ico")
+def serve_logo():
+    static_dir = os.path.join(BASE_DIR, "static")
+    return send_from_directory(static_dir, "logo.png")
 
 @app.route("/api/facebook/token-status", methods=["GET"])
 def token_status():
