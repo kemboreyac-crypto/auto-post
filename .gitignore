@@ -1,0 +1,9 @@
+temp_media/
+uploads/
+__pycache__/
+*.pyc
+.env
+*.log
+config.json
+facebook_cookies.json
+

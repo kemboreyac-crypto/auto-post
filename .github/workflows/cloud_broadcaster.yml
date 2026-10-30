@@ -1,0 +1,69 @@
+name: Cloud Social Broadcaster Automation
+
+on:
+  workflow_dispatch:
+    inputs:
+      caption:
+        description: 'Post Caption or Announcement'
+        required: false
+        default: ''
+      media_url:
+        description: 'Image URL or Video URL'
+        required: false
+        default: ''
+      target_channels:
+        description: 'Channels to post (all, pages, groups)'
+        required: false
+        default: 'all'
+  schedule:
+    # ដំណើរការផ្សព្វផ្សាយស្វ័យប្រវត្តិតាមម៉ោង (ស្រេចចិត្ត)
+    - cron: '0 2,7,12 * * *' # រៀងរាល់ម៉ោង 9:00 AM, 2:00 PM, 7:00 PM (ម៉ោងកម្ពុជា)
+
+jobs:
+  broadcast:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🚀 Run Social Broadcaster
+        env:
+          CONFIG_JSON: ${{ secrets.CONFIG_JSON }}
+          FB_COOKIES_JSON: ${{ secrets.FB_COOKIES_JSON }}
+        run: |
+          python -c "
+          import os, json
+          # Restore config from secret if present
+          if os.getenv('CONFIG_JSON'):
+              with open('config.json', 'w', encoding='utf-8') as f:
+                  f.write(os.getenv('CONFIG_JSON'))
+          if os.getenv('FB_COOKIES_JSON'):
+              with open('facebook_cookies.json', 'w', encoding='utf-8') as f:
+                  f.write(os.getenv('FB_COOKIES_JSON'))
+
+          import telegram_controller
+          cfg = telegram_controller.load_config()
+          chat_id = str(cfg.get('chat_id', ''))
+          
+          session = {
+              'media_type': 'text',
+              'media_path': '',
+              'caption': '${{ github.event.inputs.caption }}' or 'ស្វាគមន៍ការផ្សព្វផ្សាយប្រចាំថ្ងៃ!',
+              'dest_pages': True,
+              'dest_groups': True,
+              'dest_tiktok': False
+          }
+          telegram_controller.execute_broadcast(chat_id, 0, session)
+          "
+

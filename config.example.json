@@ -1,0 +1,43 @@
+{
+  "gemini_key": "YOUR_GEMINI_API_KEY",
+  "bot_token": "YOUR_TELEGRAM_BOT_TOKEN",
+  "chat_id": "YOUR_TELEGRAM_CHAT_ID",
+  "pixabay_key": "",
+  "github_token": "",
+  "github_owner": "kemboreyac-crypto",
+  "github_repo": "auto-post",
+  "facebook_page_id": "",
+  "facebook_access_token": "",
+  "facebook_user_access_token": "",
+  "facebook_auto_post": false,
+  "facebook_all_pages": true,
+  "facebook_selected_pages": [],
+  "language": "km",
+  "format": "TikTok / Reels / Shorts (ខ្លីក្រោម ៦០ វិនាទី)",
+  "tone": "ទាក់ទាញ & រំភើប (Hook & Catchy)",
+  "auto_daily_topics": true,
+  "topics": [
+    "ព័ត៌មានបច្ចេកវិទ្យា និងការអភិវឌ្ឍន៍ថ្មីៗ",
+    "គន្លឹះជោគជ័យក្នុងការធ្វើអាជីវកម្ម"
+  ],
+  "scheduler": {
+    "enabled": true,
+    "time": "17:00",
+    "last_run": null,
+    "auto_diverse_topics": true
+  },
+  "cloud_scheduler": {
+    "enabled": true,
+    "slots": [
+      "06:30",
+      "11:30",
+      "16:30"
+    ],
+    "batch_count": 5,
+    "time_kh": "06:30, 11:30, 16:30",
+    "format": "16:9",
+    "topic": "auto",
+    "auto_post": false,
+    "utc_cron": "30 23 * * *, 30 4 * * *, 30 9 * * *"
+  }
+}
