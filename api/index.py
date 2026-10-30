@@ -17,9 +17,12 @@ class VercelPathFixMiddleware:
         if environ.get("HTTP_X_FORWARDED_PROTO") == "https":
             environ["wsgi.url_scheme"] = "https"
 
-        qs = environ.get("QUERY_STRING", "")
-        if "__path=" in qs:
-            params = parse_qs(qs, keep_blank_values=True)
+        # Check matched path from Vercel headers
+        matched = environ.get("HTTP_X_MATCHED_PATH") or environ.get("HTTP_X_VERCEL_PATH")
+        if matched and not matched.startswith("/api/index"):
+            environ["PATH_INFO"] = matched
+        elif "__path=" in environ.get("QUERY_STRING", ""):
+            params = parse_qs(environ.get("QUERY_STRING", ""), keep_blank_values=True)
             if "__path" in params and params["__path"]:
                 target = params.pop("__path")[0] or "/"
                 while target.startswith("//"):
@@ -28,9 +31,9 @@ class VercelPathFixMiddleware:
                     target = "/" + target
                 environ["PATH_INFO"] = target
                 environ["QUERY_STRING"] = urlencode([(k, v) for k, vs in params.items() for v in vs])
-        elif environ.get("PATH_INFO", "").startswith("/api/index"):
+        elif environ.get("PATH_INFO") in ["/api/index.py", "/api/index", "/api/"]:
             environ["PATH_INFO"] = "/"
-            
+
         return self.wsgi_app(environ, start_response)
 
 app.wsgi_app = VercelPathFixMiddleware(app.wsgi_app)

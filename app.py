@@ -1396,6 +1396,8 @@ def get_bot_username():
     return "ac_Mart_Automate_Posting_bot"
 
 @app.route("/")
+@app.route("/api/index.py")
+@app.route("/api/index")
 def index():
     cfg = get_config()
     groups = facebook_group_service.load_groups()
@@ -1549,9 +1551,17 @@ def api_generate_caption():
         return jsonify({"success": True, "caption": caption})
     return jsonify({"success": False, "message": "Gemini API មិនបានឆ្លើយតប សូមពិនិត្យមើល gemini_key"}), 500
 
-@app.route("/api/telegram-webhook", methods=["POST"])
+@app.route("/api/telegram-webhook", methods=["GET", "POST"])
 def telegram_webhook():
     """ទទួល Webhook updates ពី Telegram Serverless"""
+    if request.method == "GET":
+        return jsonify({
+            "status": "online",
+            "service": "Facebook Social Broadcaster Webhook",
+            "bot": get_bot_username(),
+            "time": int(time.time())
+        })
+
     update = request.get_json(force=True, silent=True)
     if not update:
         return jsonify({"status": "no data"}), 400
