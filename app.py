@@ -1793,7 +1793,7 @@ def index():
     user_token = cfg.get("facebook_user_access_token") or cfg.get("facebook_access_token")
     connected = facebook_page_service.get_connected_pages(user_token)
     
-    return render_template_string(
+    resp = Response(render_template_string(
         DASHBOARD_HTML,
         groups_count=len(groups),
         bot_user=bot_name,
@@ -1801,7 +1801,11 @@ def index():
         fb_all_pages=fb_all_pages,
         selected_pages_count=len(selected_pages),
         connected_pages_count=len(connected) if connected else len(selected_pages)
-    )
+    ), mimetype="text/html")
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 @app.route("/manifest.json")
 def manifest():
