@@ -24,6 +24,21 @@ import khmer_linguistic_sanitizer
 import tempfile
 
 app = Flask(__name__)
+
+@app.before_request
+def vercel_debug_interceptor():
+    if request.headers.get("x-debug") == "1" or request.args.get("__debug") == "1":
+        return jsonify({
+            "request_path": request.path,
+            "full_path": request.full_path,
+            "PATH_INFO": request.environ.get("PATH_INFO"),
+            "SCRIPT_NAME": request.environ.get("SCRIPT_NAME"),
+            "QUERY_STRING": request.environ.get("QUERY_STRING"),
+            "REQUEST_URI": request.environ.get("REQUEST_URI"),
+            "HTTP_X_MATCHED_PATH": request.environ.get("HTTP_X_MATCHED_PATH"),
+            "HTTP_X_VERCEL_PATH": request.environ.get("HTTP_X_VERCEL_PATH"),
+            "headers": {k: v for k, v in request.headers.items() if not k.lower().startswith("authorization")}
+        })
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 
