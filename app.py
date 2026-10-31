@@ -13,6 +13,7 @@ import re
 import json
 import time
 import requests
+from urllib.parse import parse_qs, urlencode, unquote
 from flask import Flask, request, jsonify, render_template_string, send_from_directory, Response
 
 import facebook_page_service
@@ -25,20 +26,37 @@ import tempfile
 
 app = Flask(__name__)
 
-@app.before_request
-def vercel_debug_interceptor():
-    if request.headers.get("x-debug") == "1" or request.args.get("__debug") == "1":
-        return jsonify({
-            "request_path": request.path,
-            "full_path": request.full_path,
-            "PATH_INFO": request.environ.get("PATH_INFO"),
-            "SCRIPT_NAME": request.environ.get("SCRIPT_NAME"),
-            "QUERY_STRING": request.environ.get("QUERY_STRING"),
-            "REQUEST_URI": request.environ.get("REQUEST_URI"),
-            "HTTP_X_MATCHED_PATH": request.environ.get("HTTP_X_MATCHED_PATH"),
-            "HTTP_X_VERCEL_PATH": request.environ.get("HTTP_X_VERCEL_PATH"),
-            "headers": {k: v for k, v in request.headers.items() if not k.lower().startswith("authorization")}
-        })
+class VercelPathFixMiddleware:
+    """WSGI Middleware to accurately route Vercel Serverless requests"""
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        if environ.get("HTTP_X_FORWARDED_PROTO") == "https":
+            environ["wsgi.url_scheme"] = "https"
+
+        environ["SCRIPT_NAME"] = ""
+
+        qs = environ.get("QUERY_STRING", "")
+        if "__path=" in qs:
+            params = parse_qs(qs, keep_blank_values=True)
+            if "__path" in params and params["__path"]:
+                target = params.pop("__path")[0] or "/"
+                target = unquote(target)
+                while target.startswith("//"):
+                    target = target[1:]
+                if not target.startswith("/"):
+                    target = "/" + target
+                environ["PATH_INFO"] = target
+                environ["REQUEST_URI"] = target
+                environ["RAW_URI"] = target
+                environ["QUERY_STRING"] = urlencode([(k, v) for k, vs in params.items() for v in vs])
+        elif environ.get("PATH_INFO") in ["/api/index.py", "/api/index", "/api/", "/app.py"]:
+            environ["PATH_INFO"] = "/"
+
+        return self.wsgi_app(environ, start_response)
+
+app.wsgi_app = VercelPathFixMiddleware(app.wsgi_app)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
 
@@ -1763,8 +1781,6 @@ def get_bot_username():
     return "ac_Mart_Automate_Posting_bot"
 
 @app.route("/")
-@app.route("/api/index.py")
-@app.route("/api/index")
 def index():
     cfg = get_config()
     groups = facebook_group_service.load_groups()

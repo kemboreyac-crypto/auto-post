@@ -1,6 +1,6 @@
 import os
 import sys
-from urllib.parse import parse_qs, urlencode
+from urllib.parse import parse_qs, urlencode, unquote
 
 # Add root directory to sys.path
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -18,13 +18,6 @@ class VercelPathFixMiddleware:
         self.wsgi_app = wsgi_app
 
     def __call__(self, environ, start_response):
-        if environ.get("HTTP_X_DEBUG") == "1" or "__debug" in environ.get("QUERY_STRING", ""):
-            import json as _json
-            data = {k: str(v) for k, v in environ.items() if not k.startswith("wsgi.")}
-            body = _json.dumps(data, indent=2).encode("utf-8")
-            start_response("200 OK", [("Content-Type", "application/json")])
-            return [body]
-
         if environ.get("HTTP_X_FORWARDED_PROTO") == "https":
             environ["wsgi.url_scheme"] = "https"
 
@@ -36,6 +29,7 @@ class VercelPathFixMiddleware:
             params = parse_qs(qs, keep_blank_values=True)
             if "__path" in params and params["__path"]:
                 target = params.pop("__path")[0] or "/"
+                target = unquote(target)
                 while target.startswith("//"):
                     target = target[1:]
                 if not target.startswith("/"):
@@ -44,7 +38,7 @@ class VercelPathFixMiddleware:
                 environ["REQUEST_URI"] = target
                 environ["RAW_URI"] = target
                 environ["QUERY_STRING"] = urlencode([(k, v) for k, vs in params.items() for v in vs])
-        elif environ.get("PATH_INFO") in ["/api/index.py", "/api/index", "/api/"]:
+        elif environ.get("PATH_INFO") in ["/api/index.py", "/api/index", "/api/", "/app.py"]:
             environ["PATH_INFO"] = "/"
 
         return self.wsgi_app(environ, start_response)
