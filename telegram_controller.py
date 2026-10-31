@@ -37,11 +37,21 @@ import tiktok_service
 import khmer_linguistic_sanitizer
 
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
+TMP_CONFIG_FILE = os.path.join(tempfile.gettempdir(), "config.json")
 
 def load_config() -> dict:
+    if os.path.exists(TMP_CONFIG_FILE):
+        try:
+            with open(TMP_CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
     if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
     elif os.getenv("CONFIG_JSON"):
         try:
             return json.loads(os.getenv("CONFIG_JSON"))
@@ -49,9 +59,35 @@ def load_config() -> dict:
             pass
     example_file = os.path.join(BASE_DIR, "config.example.json")
     if os.path.exists(example_file):
-        with open(example_file, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(example_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
     return {}
+
+def save_config(cfg_data: dict) -> bool:
+    saved = False
+    if not os.environ.get("VERCEL") and os.access(BASE_DIR, os.W_OK):
+        try:
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(cfg_data, f, ensure_ascii=False, indent=2)
+            saved = True
+        except Exception:
+            pass
+    try:
+        with open(TMP_CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(cfg_data, f, ensure_ascii=False, indent=2)
+        saved = True
+    except Exception:
+        pass
+    global CONFIG, BOT_TOKEN, ALLOWED_CHAT_ID
+    CONFIG = cfg_data
+    if "bot_token" in cfg_data and cfg_data["bot_token"]:
+        BOT_TOKEN = cfg_data["bot_token"]
+    if "chat_id" in cfg_data and cfg_data["chat_id"]:
+        ALLOWED_CHAT_ID = str(cfg_data["chat_id"])
+    return saved
 
 CONFIG = load_config()
 BOT_TOKEN = CONFIG.get("bot_token", "")
@@ -521,8 +557,7 @@ def handle_callback_query(callback: dict):
         cfg = load_config()
         curr = cfg.get("facebook_all_pages", False)
         cfg["facebook_all_pages"] = not curr
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, ensure_ascii=False, indent=2)
+        save_config(cfg)
         send_settings_menu(chat_id, message_id=message_id)
         return
 

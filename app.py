@@ -59,6 +59,7 @@ class VercelPathFixMiddleware:
 app.wsgi_app = VercelPathFixMiddleware(app.wsgi_app)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
+TMP_CONFIG_FILE = os.path.join(tempfile.gettempdir(), "config.json")
 
 # Use /tmp on Vercel or read-only environments
 if os.environ.get("VERCEL") or not os.access(BASE_DIR, os.W_OK):
@@ -68,35 +69,66 @@ else:
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 def get_config():
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            try:
+    # 1. ពិនិត្យមើល /tmp/config.json ជាមុនសិន ប្រសិនបើមានការកែប្រែថ្មីៗលើ Serverless
+    if os.path.exists(TMP_CONFIG_FILE):
+        try:
+            with open(TMP_CONFIG_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
-            except Exception:
-                return {}
+        except Exception:
+            pass
+
+    # 2. ពិនិត្យមើល root CONFIG_FILE
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+
+    # 3. ពិនិត្យមើល Environment Variable CONFIG_JSON
     elif os.getenv("CONFIG_JSON"):
         try:
             return json.loads(os.getenv("CONFIG_JSON"))
         except Exception:
             pass
-    example_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.example.json")
+
+    # 4. Fallback ទៅ config.example.json
+    example_file = os.path.join(BASE_DIR, "config.example.json")
     if os.path.exists(example_file):
-        with open(example_file, "r", encoding="utf-8") as f:
-            try:
+        try:
+            with open(example_file, "r", encoding="utf-8") as f:
                 return json.load(f)
-            except Exception:
-                return {}
+        except Exception:
+            pass
     return {}
 
 def save_config(cfg_data: dict) -> bool:
+    saved = False
+    # ប្រសិនបើជាបរិស្ថាន Local ដែលមានសិទ្ធិ Write
+    if not os.environ.get("VERCEL") and os.access(BASE_DIR, os.W_OK):
+        try:
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(cfg_data, f, ensure_ascii=False, indent=2)
+            saved = True
+        except Exception as e:
+            print(f"⚠️ Error saving to CONFIG_FILE: {e}")
+
+    # សរសេរចូល /tmp/config.json ជានិច្ចសម្រាប់ Serverless / Vercel
     try:
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        with open(TMP_CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(cfg_data, f, ensure_ascii=False, indent=2)
-        telegram_controller.CONFIG = cfg_data
-        return True
+        saved = True
     except Exception as e:
-        print(f"⚠️ Error saving config: {e}")
-        return False
+        print(f"⚠️ Error saving to TMP_CONFIG_FILE: {e}")
+
+    # កំណត់ config ចូលក្នុង Memory របស់ telegram controller ភ្លាមៗ
+    telegram_controller.CONFIG = cfg_data
+    if "bot_token" in cfg_data and cfg_data["bot_token"]:
+        telegram_controller.BOT_TOKEN = cfg_data["bot_token"]
+    if "chat_id" in cfg_data and cfg_data["chat_id"]:
+        telegram_controller.ALLOWED_CHAT_ID = str(cfg_data["chat_id"])
+
+    return saved
 
 def generate_gemini_caption(topic: str, tone: str = "sales") -> str:
     """ប្រើប្រាស់ Gemini AI ដើម្បីបង្កើត Caption ភាសាខ្មែរទាក់ទាញស្វ័យប្រវត្តិ"""
