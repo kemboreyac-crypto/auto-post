@@ -15,6 +15,7 @@ import json
 import time
 import requests
 from typing import List, Dict, Tuple, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 GRAPH_API_VERSION = "v19.0"
 GRAPH_API_BASE = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
@@ -175,16 +176,18 @@ def broadcast_to_all_pages(pages_list: List[Dict], message: str,
                            image_url: Optional[str] = None, image_path: Optional[str] = None,
                            video_url: Optional[str] = None, video_path: Optional[str] = None) -> List[Dict]:
     """
-    បាញ់ផុសទៅកាន់គ្រប់ Pages ទាំងអស់ក្នុងបញ្ជី
+    បាញ់ផុសទៅកាន់គ្រប់ Pages ទាំងអស់ក្នុងបញ្ជីដោយប្រើ Parallel ThreadPool លឿន និងរហ័ស
     """
+    valid_pages = [p for p in pages_list if p.get('id') and p.get('access_token')]
+    if not valid_pages:
+        return []
+
     results = []
-    for page in pages_list:
+
+    def _post_page(page: Dict) -> Dict:
         p_id = page.get('id')
         p_name = page.get('name', 'Page')
         p_token = page.get('access_token')
-        if not p_id or not p_token:
-            continue
-        
         ok, msg, post_id = post_to_single_page(
             page_id=p_id,
             page_token=p_token,
@@ -194,13 +197,23 @@ def broadcast_to_all_pages(pages_list: List[Dict], message: str,
             video_url=video_url,
             video_path=video_path
         )
-        results.append({
+        return {
             "page_id": p_id,
             "page_name": p_name,
             "success": ok,
             "message": msg,
             "post_id": post_id
-        })
-        time.sleep(1) # delay បន្តិចដើម្បីសុវត្ថិភាព API
+        }
+
+    # ដំណើរការ 5 Threads ដំណាលគ្នា ដើម្បីឱ្យការផ្សាយចំណាយពេលត្រឹម 5-8 វិនាទី
+    max_workers = min(5, len(valid_pages))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(_post_page, p) for p in valid_pages]
+        for f in as_completed(futures):
+            try:
+                results.append(f.result())
+            except Exception as e:
+                results.append({"success": False, "message": str(e), "post_id": None})
+
     return results
 

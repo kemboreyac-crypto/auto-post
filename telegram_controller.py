@@ -584,8 +584,12 @@ def handle_callback_query(callback: dict):
                 "parse_mode": "Markdown"
             })
             return
-        # ចាប់ផ្តើមដំណើរការ Broadcast ក្នុង Thread ថ្មី
-        threading.Thread(target=execute_broadcast, args=(chat_id, message_id, session)).start()
+        # បើករត់លើ Serverless (Vercel) ត្រូវរត់ផ្ទាល់ (Synchronous) ដើម្បីកុំឱ្យ Container Freeze
+        # បើករត់លើ Desktop / Long Polling អាចរត់ Thread បាន
+        if os.environ.get("VERCEL"):
+            execute_broadcast(chat_id, message_id, session)
+        else:
+            threading.Thread(target=execute_broadcast, args=(chat_id, message_id, session)).start()
         return
 
     # Update ប៊ូតុងលើអេក្រង់
@@ -602,125 +606,133 @@ def handle_callback_query(callback: dict):
 
 def execute_broadcast(chat_id: str, message_id: int, session: dict):
     """រត់ការបាញ់ផ្សាយទៅកាន់ Channels ដែលបានជ្រើសរើស"""
-    if message_id:
-        send_telegram_api("editMessageText", {
-            "chat_id": chat_id,
-            "message_id": message_id,
-            "text": "🚀 **កំពុងដំណើរការផ្សព្វផ្សាយ (Broadcasting in progress...)...**\n\nសូមរង់ចាំបន្តិច...",
-            "parse_mode": "Markdown"
-        })
-    else:
-        send_telegram_api("sendMessage", {
-            "chat_id": chat_id,
-            "text": "🚀 **ចាប់ផ្ដើមដំណើរការផ្សព្វផ្សាយ (Broadcasting in progress...)...**\n\nសូមរង់ចាំបន្តិច...",
-            "parse_mode": "Markdown"
-        })
+    try:
+        if message_id:
+            send_telegram_api("editMessageText", {
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "text": "🚀 **កំពុងដំណើរការផ្សព្វផ្សាយ (Broadcasting in progress...)...**\n\nសូមរង់ចាំបន្តិច...",
+                "parse_mode": "Markdown"
+            })
+        else:
+            send_telegram_api("sendMessage", {
+                "chat_id": chat_id,
+                "text": "🚀 **ចាប់ផ្ដើមដំណើរការផ្សព្វផ្សាយ (Broadcasting in progress...)...**\n\nសូមរង់ចាំបន្តិច...",
+                "parse_mode": "Markdown"
+            })
 
-    cfg = load_config()
-    user_token = cfg.get("facebook_user_access_token") or cfg.get("facebook_access_token")
-    page_id = cfg.get("facebook_page_id")
+        cfg = load_config()
+        user_token = cfg.get("facebook_user_access_token") or cfg.get("facebook_access_token")
+        page_id = cfg.get("facebook_page_id")
 
-    caption = session.get("caption", "")
-    media_type = session.get("media_type")
-    media_path = session.get("media_path")
+        caption = session.get("caption", "")
+        media_type = session.get("media_type")
+        media_path = session.get("media_path")
 
-    # ត្រួតពិនិត្យ និងទាញយក Video/Photo URL ដោយស្វ័យប្រវត្តិ ប្រសិនបើនៅជា Text
-    if media_type == "text" or not media_path:
-        clean_c, auto_type, auto_url = extract_media_from_content(caption)
-        if auto_type != "text" and auto_url:
-            media_type = auto_type
-            media_path = auto_url
-            caption = clean_c
+        # ត្រួតពិនិត្យ និងទាញយក Video/Photo URL ដោយស្វ័យប្រវត្តិ ប្រសិនបើនៅជា Text
+        if media_type == "text" or not media_path:
+            clean_c, auto_type, auto_url = extract_media_from_content(caption)
+            if auto_type != "text" and auto_url:
+                media_type = auto_type
+                media_path = auto_url
+                caption = clean_c
 
-    report_lines = ["📊 **របាយការណ៍ផ្សព្វផ្សាយ (Broadcast Report):**\n"]
+        report_lines = ["📊 **របាយការណ៍ផ្សព្វផ្សាយ (Broadcast Report):**\n"]
 
-    # ---------------- 1. FACEBOOK PAGES ----------------
-    if session.get("dest_pages"):
-        media_desc = "🎥 Native Video" if media_type == "video" else ("🖼️ Photo" if media_type == "photo" else "📝 Text")
-        send_telegram_api("sendMessage", {"chat_id": chat_id, "text": f"📘 [1/3] កំពុងផុស {media_desc} ចូល Facebook Pages..."})
-        pages = facebook_page_service.get_connected_pages(user_token)
-        if not pages and page_id:
-            # ប្រើទោល Page ID បើមិនអាចទាញបញ្ជី
-            pages = [{"id": page_id, "name": "Main Page", "access_token": user_token}]
+        # ---------------- 1. FACEBOOK PAGES ----------------
+        if session.get("dest_pages"):
+            media_desc = "🎥 Native Video" if media_type == "video" else ("🖼️ Photo" if media_type == "photo" else "📝 Text")
+            send_telegram_api("sendMessage", {"chat_id": chat_id, "text": f"📘 [1/3] កំពុងផុស {media_desc} ចូល Facebook Pages..."})
+            pages = facebook_page_service.get_connected_pages(user_token)
+            if not pages and page_id:
+                # ប្រើទោល Page ID បើមិនអាចទាញបញ្ជី
+                pages = [{"id": page_id, "name": "Main Page", "access_token": user_token}]
 
-        # ពិនិត្យការកំណត់ជ្រើសរើស Pages ក្នុង config.json
-        if pages and not cfg.get("facebook_all_pages", False):
-            selected_pages_cfg = cfg.get("facebook_selected_pages", [])
-            if selected_pages_cfg:
-                selected_ids = {str(p.get("id")) for p in selected_pages_cfg}
-                filtered_pages = [p for p in pages if str(p.get("id")) in selected_ids]
-                if filtered_pages:
-                    pages = filtered_pages
+            # ពិនិត្យការកំណត់ជ្រើសរើស Pages ក្នុង config.json
+            if pages and not cfg.get("facebook_all_pages", False):
+                selected_pages_cfg = cfg.get("facebook_selected_pages", [])
+                if selected_pages_cfg:
+                    selected_ids = {str(p.get("id")) for p in selected_pages_cfg}
+                    filtered_pages = [p for p in pages if str(p.get("id")) in selected_ids]
+                    if filtered_pages:
+                        pages = filtered_pages
 
-        if pages:
-            max_limit = 50 if cfg.get("facebook_all_pages", False) else 15
-            is_url = bool(media_path and str(media_path).startswith("http"))
-            res_pages = facebook_page_service.broadcast_to_all_pages(
-                pages_list=pages[:max_limit],
-                message=caption,
-                image_url=(media_path if media_type == "photo" and is_url else None),
-                image_path=(media_path if media_type == "photo" and not is_url else None),
-                video_url=(media_path if media_type == "video" and is_url else None),
-                video_path=(media_path if media_type == "video" and not is_url else None)
+            if pages:
+                max_limit = 50 if cfg.get("facebook_all_pages", False) else 15
+                is_url = bool(media_path and str(media_path).startswith("http"))
+                res_pages = facebook_page_service.broadcast_to_all_pages(
+                    pages_list=pages[:max_limit],
+                    message=caption,
+                    image_url=(media_path if media_type == "photo" and is_url else None),
+                    image_path=(media_path if media_type == "photo" and not is_url else None),
+                    video_url=(media_path if media_type == "video" and is_url else None),
+                    video_path=(media_path if media_type == "video" and not is_url else None)
+                )
+                success_pages = sum(1 for p in res_pages if p.get("success"))
+                report_lines.append(f"✅ **Facebook Pages:** ជោគជ័យ {success_pages}/{len(res_pages)} Pages ({media_desc})")
+            else:
+                report_lines.append("⚠️ **Facebook Pages:** គ្មាន Page សម្រាប់ផុស")
+
+        # ---------------- 2. FACEBOOK GROUPS ----------------
+        if session.get("dest_groups"):
+            send_telegram_api("sendMessage", {"chat_id": chat_id, "text": "👥 [2/3] កំពុងរៀបចំ និងចម្រាញ់ Facebook Groups តាម Niche..."})
+            matched_groups, niche = facebook_group_service.filter_niche_groups(caption=caption, max_groups=10)
+            
+            if matched_groups:
+                posted_count = 0
+                for g in matched_groups:
+                    facebook_group_service.mark_group_posted(g.get("id"))
+                    posted_count += 1
+                report_lines.append(f"✅ **Facebook Groups:** បានចាត់ចែងផុសចូល {posted_count} ក្រុម (Niche: '{niche}')")
+            else:
+                report_lines.append("⚠️ **Facebook Groups:** ក្រុមទាំងអស់ស្ថិតក្នុង Cooldown 24h នៅឡើយ")
+
+        # ---------------- 3. TIKTOK ----------------
+        if session.get("dest_tiktok"):
+            send_telegram_api("sendMessage", {"chat_id": chat_id, "text": "🎵 [3/3] កំពុងរៀបចំ Caption & Viral Hashtags សម្រាប់ TikTok..."})
+            tt_payload = tiktok_service.generate_tiktok_share_payload(video_url=(str(media_path) if media_path else ""), caption=caption)
+            formatted_tt_caption = tt_payload.get("caption", caption)
+
+            tt_text = (
+                "🎵 **TikTok Studio Card (មាតិការួចរាល់សម្រាប់ TikTok):**\n\n"
+                "📋 **Caption & Viral Hashtags (ចុចលើប្រអប់ខាងក្រោមដើម្បី Copy ភ្លាមៗ):**\n"
+                f"```\n{formatted_tt_caption}\n```\n\n"
+                "👉 **របៀបផុសក្នុង TikTok (3 ជំហានងាយៗ):**\n"
+                "1️⃣ ចុចលើប្រអប់ Caption ខាងលើដើម្បី Copy (1-Tap Copy)\n"
+                "2️⃣ ចុចប៊ូតុង **[📱 បើក TikTok Studio Upload]** ខាងក្រោម\n"
+                "3️⃣ Upload វីដេអូ ឬរូបភាព រួច Paste Caption ចូលជាការស្រេច! 🎉"
             )
-            success_pages = sum(1 for p in res_pages if p["success"])
-            report_lines.append(f"✅ **Facebook Pages:** ជោគជ័យ {success_pages}/{len(res_pages)} Pages ({media_desc})")
-        else:
-            report_lines.append("⚠️ **Facebook Pages:** គ្មាន Page សម្រាប់ផុស")
+            send_telegram_api("sendMessage", {
+                "chat_id": chat_id,
+                "text": tt_text,
+                "parse_mode": "Markdown",
+                "reply_markup": {
+                    "inline_keyboard": [
+                        [
+                            {"text": "📱 បើក TikTok Studio Upload", "url": "https://www.tiktok.com/creator-center/upload"}
+                        ]
+                    ]
+                }
+            })
+            report_lines.append("✅ **TikTok:** បានរៀបចំ Caption + Viral Hashtags និងប៊ូតុង Upload រួចរាល់!")
 
-    # ---------------- 2. FACEBOOK GROUPS ----------------
-    if session.get("dest_groups"):
-        send_telegram_api("sendMessage", {"chat_id": chat_id, "text": "👥 [2/3] កំពុងរៀបចំ និងចម្រាញ់ Facebook Groups តាម Niche..."})
-        matched_groups, niche = facebook_group_service.filter_niche_groups(caption=caption, max_groups=10)
-        
-        if matched_groups:
-            # ត្រៀមផុសចូល Groups
-            posted_count = 0
-            for g in matched_groups:
-                facebook_group_service.mark_group_posted(g.get("id"))
-                posted_count += 1
-            report_lines.append(f"✅ **Facebook Groups:** បានចាត់ចែងផុសចូល {posted_count} ក្រុម (Niche: '{niche}')")
-        else:
-            report_lines.append("⚠️ **Facebook Groups:** ក្រុមទាំងអស់ស្ថិតក្នុង Cooldown 24h នៅឡើយ")
+        report_lines.append("\n🎉 **ការផ្សព្វផ្សាយត្រូវបានបញ្ចប់សព្វគ្រប់!**")
+        final_report = "\n".join(report_lines)
 
-    # ---------------- 3. TIKTOK ----------------
-    if session.get("dest_tiktok"):
-        send_telegram_api("sendMessage", {"chat_id": chat_id, "text": "🎵 [3/3] កំពុងរៀបចំ Caption & Viral Hashtags សម្រាប់ TikTok..."})
-        tt_payload = tiktok_service.generate_tiktok_share_payload(video_url=(str(media_path) if media_path else ""), caption=caption)
-        formatted_tt_caption = tt_payload.get("caption", caption)
-
-        tt_text = (
-            "🎵 **TikTok Studio Card (មាតិការួចរាល់សម្រាប់ TikTok):**\n\n"
-            "📋 **Caption & Viral Hashtags (ចុចលើប្រអប់ខាងក្រោមដើម្បី Copy ភ្លាមៗ):**\n"
-            f"```\n{formatted_tt_caption}\n```\n\n"
-            "👉 **របៀបផុសក្នុង TikTok (3 ជំហានងាយៗ):**\n"
-            "1️⃣ ចុចលើប្រអប់ Caption ខាងលើដើម្បី Copy (1-Tap Copy)\n"
-            "2️⃣ ចុចប៊ូតុង **[📱 បើក TikTok Studio Upload]** ខាងក្រោម\n"
-            "3️⃣ Upload វីដេអូ ឬរូបភាព រួច Paste Caption ចូលជាការស្រេច! 🎉"
-        )
         send_telegram_api("sendMessage", {
             "chat_id": chat_id,
-            "text": tt_text,
-            "parse_mode": "Markdown",
-            "reply_markup": {
-                "inline_keyboard": [
-                    [
-                        {"text": "📱 បើក TikTok Studio Upload", "url": "https://www.tiktok.com/creator-center/upload"}
-                    ]
-                ]
-            }
+            "text": final_report,
+            "parse_mode": "Markdown"
         })
-        report_lines.append("✅ **TikTok:** បានរៀបចំ Caption + Viral Hashtags និងប៊ូតុង Upload រួចរាល់!")
-
-    report_lines.append("\n🎉 **ការផ្សព្វផ្សាយត្រូវបានបញ្ចប់សព្វគ្រប់!**")
-    final_report = "\n".join(report_lines)
-
-    send_telegram_api("sendMessage", {
-        "chat_id": chat_id,
-        "text": final_report,
-        "parse_mode": "Markdown"
-    })
-    USER_SESSIONS.pop(chat_id, None)
+    except Exception as e:
+        print(f"⚠️ Error executing broadcast: {e}")
+        send_telegram_api("sendMessage", {
+            "chat_id": chat_id,
+            "text": f"⚠️ **ការផ្សព្វផ្សាយបានជួបប្រទះបញ្ហា៖**\n`{str(e)}`\n\nសូមពិនិត្យមើល និងសាកល្បងម្ដងទៀត។",
+            "parse_mode": "Markdown"
+        })
+    finally:
+        USER_SESSIONS.pop(chat_id, None)
 
 def start_polling():
     """រត់ Bot តាម Long-Polling (សម្រាប់ Test ឬរត់លើ Desktop / Server)"""

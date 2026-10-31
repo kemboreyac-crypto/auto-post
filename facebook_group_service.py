@@ -17,8 +17,43 @@ import time
 import requests
 from typing import List, Dict, Tuple, Optional
 
-GROUPS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "facebook_groups.json")
-COOKIES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "facebook_cookies.json")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+GROUPS_FILE = os.path.join(BASE_DIR, "facebook_groups.json")
+COOKIES_FILE = os.path.join(BASE_DIR, "facebook_cookies.json")
+
+def get_active_groups_file() -> str:
+    """ប្រើប្រាស់ /tmp លើ Vercel Serverless ដើម្បីអាចកត់ត្រា Cooldown បានដោយគ្មាន Error Read-only"""
+    if os.environ.get("VERCEL") or not os.access(BASE_DIR, os.W_OK):
+        import tempfile, shutil
+        tmp_file = os.path.join(tempfile.gettempdir(), "facebook_groups.json")
+        if not os.path.exists(tmp_file) and os.path.exists(GROUPS_FILE):
+            try:
+                shutil.copy2(GROUPS_FILE, tmp_file)
+            except Exception:
+                pass
+        if os.path.exists(tmp_file):
+            return tmp_file
+    return GROUPS_FILE
+
+def load_groups() -> List[Dict]:
+    """ទាញយកបញ្ជីក្រុមទាំងអស់ពី JSON"""
+    target = get_active_groups_file()
+    if os.path.exists(target):
+        try:
+            with open(target, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"⚠️ Error reading groups file: {e}")
+    return []
+
+def save_groups(groups: List[Dict]):
+    """រក្សាទុកបញ្ជីក្រុម"""
+    target = get_active_groups_file()
+    try:
+        with open(target, "w", encoding="utf-8") as f:
+            json.dump(groups, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"⚠️ Error saving groups file: {e}")
 
 NICHE_MAPPINGS = {
     "real_estate": {
@@ -57,24 +92,6 @@ NICHE_MAPPINGS = {
         "allowed_group_types": ["services", "general"]
     }
 }
-
-def load_groups() -> List[Dict]:
-    """ទាញយកបញ្ជីក្រុមទាំងអស់ពី JSON"""
-    if os.path.exists(GROUPS_FILE):
-        try:
-            with open(GROUPS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"⚠️ Error reading groups file: {e}")
-    return []
-
-def save_groups(groups: List[Dict]):
-    """រក្សាទុកបញ្ជីក្រុម"""
-    try:
-        with open(GROUPS_FILE, "w", encoding="utf-8") as f:
-            json.dump(groups, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print(f"⚠️ Error saving groups file: {e}")
 
 def detect_caption_niche(caption: str) -> str:
     """វិភាគរក Niche នៃអត្ថបទ/Caption ជាមួយប្រព័ន្ធពិន្ទុតាមប្រវែងពាក្យ (Weighted Matching)"""
