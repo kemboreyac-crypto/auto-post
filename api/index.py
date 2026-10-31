@@ -10,6 +10,10 @@ if root_dir not in sys.path:
 from app import app
 
 class VercelPathFixMiddleware:
+    """
+    WSGI Middleware to accurately route Vercel Serverless requests
+    Prioritizes __path query parameter rewritten by vercel.json
+    """
     def __init__(self, wsgi_app):
         self.wsgi_app = wsgi_app
 
@@ -17,12 +21,12 @@ class VercelPathFixMiddleware:
         if environ.get("HTTP_X_FORWARDED_PROTO") == "https":
             environ["wsgi.url_scheme"] = "https"
 
-        # Check matched path from Vercel headers
-        matched = environ.get("HTTP_X_MATCHED_PATH") or environ.get("HTTP_X_VERCEL_PATH")
-        if matched and not matched.startswith("/api/index"):
-            environ["PATH_INFO"] = matched
-        elif "__path=" in environ.get("QUERY_STRING", ""):
-            params = parse_qs(environ.get("QUERY_STRING", ""), keep_blank_values=True)
+        environ["SCRIPT_NAME"] = ""
+
+        qs = environ.get("QUERY_STRING", "")
+        # Prioritize __path rewritten by vercel.json
+        if "__path=" in qs:
+            params = parse_qs(qs, keep_blank_values=True)
             if "__path" in params and params["__path"]:
                 target = params.pop("__path")[0] or "/"
                 while target.startswith("//"):
@@ -30,6 +34,8 @@ class VercelPathFixMiddleware:
                 if not target.startswith("/"):
                     target = "/" + target
                 environ["PATH_INFO"] = target
+                environ["REQUEST_URI"] = target
+                environ["RAW_URI"] = target
                 environ["QUERY_STRING"] = urlencode([(k, v) for k, vs in params.items() for v in vs])
         elif environ.get("PATH_INFO") in ["/api/index.py", "/api/index", "/api/"]:
             environ["PATH_INFO"] = "/"

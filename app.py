@@ -510,8 +510,19 @@ DASHBOARD_HTML = """
       align-items: center;
       padding: 20px 24px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      gap: 12px;
     }
-    .modal-header h2 { font-size: 1.25rem; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+    .modal-header h2 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      flex: 1;
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
     .btn-close {
       background: rgba(255,255,255,0.06);
       border: 1px solid rgba(255,255,255,0.1);
@@ -698,6 +709,220 @@ DASHBOARD_HTML = """
       display: none;
       z-index: 2000;
     }
+    /* Group Toolbar */
+    .group-toolbar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .group-toolbar input[type="text"] {
+      flex: 1 1 180px;
+      min-width: 140px;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+    }
+    .group-toolbar select {
+      flex: 0 1 170px;
+      min-width: 140px;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      color: #fff;
+      font-family: inherit;
+    }
+    .group-actions-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    /* ================= RESPONSIVE DESIGN (AUTO-FIT ALL SCREENS) ================= */
+    @media (max-width: 768px) {
+      body {
+        padding: 12px 10px;
+      }
+      .container {
+        width: 100%;
+        max-width: 100%;
+      }
+      .top-nav {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+      }
+      .brand-box {
+        gap: 10px;
+      }
+      .brand-logo {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+      }
+      .brand-text h1 {
+        font-size: 1.35rem;
+      }
+      .brand-text p {
+        font-size: 0.78rem;
+      }
+      .nav-actions {
+        width: 100%;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .btn-install, .btn-settings {
+        flex: 1 1 140px;
+        justify-content: center;
+        padding: 9px 12px;
+        font-size: 0.88rem;
+      }
+      .badge-bot {
+        width: 100%;
+        justify-content: center;
+        font-size: 0.8rem;
+        padding: 7px 10px;
+      }
+      .grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .card {
+        padding: 14px 16px;
+        border-radius: 14px;
+      }
+      .composer {
+        padding: 16px 14px;
+        border-radius: 16px;
+        margin-bottom: 16px;
+      }
+      .composer-header h2 {
+        font-size: 1.1rem;
+      }
+      .media-tab {
+        flex: 1 1 130px;
+        text-align: center;
+      }
+      .dropzone {
+        padding: 16px 12px;
+      }
+      .preview-card {
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .channels-bar {
+        flex-direction: column;
+        gap: 8px;
+        padding: 12px 14px;
+      }
+      .channel-opt {
+        width: 100%;
+        font-size: 0.85rem;
+      }
+      .btn-submit {
+        padding: 14px;
+        font-size: 0.98rem;
+      }
+
+      /* Settings Modal Responsive */
+      .modal-overlay {
+        padding: 8px 6px;
+        align-items: flex-end;
+      }
+      .modal-card {
+        width: 100%;
+        max-width: 100%;
+        max-height: 94vh;
+        border-radius: 20px 20px 10px 10px;
+      }
+      .modal-header {
+        padding: 12px 16px;
+      }
+      .modal-header h2 {
+        font-size: 1.02rem;
+        line-height: 1.35;
+      }
+      .modal-body {
+        padding: 14px 12px;
+      }
+      .settings-section {
+        padding: 14px 12px;
+        margin-bottom: 14px;
+      }
+      .radio-pill-group {
+        flex-direction: column;
+        gap: 8px;
+      }
+      .radio-pill {
+        min-width: 100%;
+        width: 100%;
+        padding: 10px 12px;
+      }
+      .group-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .group-toolbar input[type="text"],
+      .group-toolbar select {
+        width: 100% !important;
+        min-width: 100% !important;
+        flex: 1 1 100% !important;
+      }
+      .group-actions-row {
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .group-actions-row .btn-sm {
+        flex: 1 1 auto;
+        text-align: center;
+        justify-content: center;
+      }
+      .modal-footer {
+        padding: 12px 14px;
+        flex-direction: column-reverse;
+        gap: 8px;
+      }
+      .modal-footer button {
+        width: 100%;
+        justify-content: center;
+        text-align: center;
+        padding: 12px;
+      }
+      #toast {
+        bottom: 16px;
+        right: 16px;
+        left: 16px;
+        text-align: center;
+      }
+    }
+
+    @media (max-width: 480px) {
+      body {
+        padding: 8px 6px;
+      }
+      .brand-text h1 {
+        font-size: 1.18rem;
+      }
+      .modal-header h2 {
+        font-size: 0.92rem;
+      }
+      .btn-install, .btn-settings {
+        font-size: 0.82rem;
+        padding: 8px 10px;
+      }
+      .card .val {
+        font-size: 1.1rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -882,9 +1107,9 @@ DASHBOARD_HTML = """
 
           <!-- Page Selection List -->
           <div id="pagesSelectionArea">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
               <span style="font-size:0.85rem; font-weight:600; color:#cbd5e1;">បញ្ជី Facebook Pages (ចុចធីកដើម្បីជ្រើសរើស):</span>
-              <div style="display:flex; gap:6px;">
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
                 <button type="button" class="btn-sm" onclick="toggleAllCheckboxes(true)">ជ្រើសទាំងអស់</button>
                 <button type="button" class="btn-sm" onclick="toggleAllCheckboxes(false)">ដោះចេញទាំងអស់</button>
               </div>
@@ -916,18 +1141,20 @@ DASHBOARD_HTML = """
           </p>
 
           <!-- Group Search & Filter Toolbar -->
-          <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center;">
-            <input type="text" id="groupSearchInput" placeholder="🔍 ស្វែងរកក្រុមតាមឈ្មោះ..." style="flex:1; min-width:180px; padding:8px 12px; font-size:0.85rem;" oninput="filterGroupsList()">
-            <select id="groupFilterSelect" style="width:auto; padding:8px 12px; font-size:0.85rem;" onchange="filterGroupsList()">
+          <div class="group-toolbar">
+            <input type="text" id="groupSearchInput" placeholder="🔍 ស្វែងរកក្រុមតាមឈ្មោះ..." oninput="filterGroupsList()">
+            <select id="groupFilterSelect" onchange="filterGroupsList()">
               <option value="all">ទាំងអស់ (All Groups)</option>
               <option value="ready">🟢 ក្រុមរួចរាល់ (Ready to Post)</option>
               <option value="cooldown">⏳ ក្រុមក្នុង Cooldown 24h</option>
             </select>
-            <button type="button" class="btn-sm" onclick="toggleAllGroupsCheckboxes(true)">ជ្រើសទាំងអស់</button>
-            <button type="button" class="btn-sm" onclick="toggleAllGroupsCheckboxes(false)">ដោះចេញទាំងអស់</button>
-            <button type="button" class="btn-sm btn-sm-warning" onclick="resetGroupCooldowns()">
-              🔄 សម្អាត Cooldown 24h
-            </button>
+            <div class="group-actions-row">
+              <button type="button" class="btn-sm" onclick="toggleAllGroupsCheckboxes(true)">ជ្រើសទាំងអស់</button>
+              <button type="button" class="btn-sm" onclick="toggleAllGroupsCheckboxes(false)">ដោះចេញទាំងអស់</button>
+              <button type="button" class="btn-sm btn-sm-warning" onclick="resetGroupCooldowns()">
+                🔄 សម្អាត Cooldown 24h
+              </button>
+            </div>
           </div>
 
           <!-- All 106 Groups Scrollable Container -->

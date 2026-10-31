@@ -376,6 +376,31 @@ def handle_incoming_message(msg: dict):
                     })
                     return
 
+        # TikTok Command & Guide
+        if lower_text in ["/tiktok", "tiktok", "ទិកតុក", "របៀបផុស tiktok", "របៀបផុសទិកតុក"]:
+            send_telegram_api("sendMessage", {
+                "chat_id": chat_id,
+                "text": (
+                    "🎵 **របៀបផុសក្នុង TikTok តាមរយៈ Telegram Bot (ងាយស្រួលបំផុត):**\n\n"
+                    "1️⃣ **ផ្ញើវីដេអូ ឬរូបភាព** ជាមួយ Caption មកកាន់ Bot នេះ\n"
+                    "2️⃣ Bot នឹងបង្ហាញផ្ទាំងជ្រើសរើស Channels:\n"
+                    "   • ពិនិត្យមើលឱ្យប្រាកដថា **[🎵 TikTok: ✅]** បើកដំណើរការ\n"
+                    "   • ចុច **[🚀 ផុសភ្លាមៗ (Publish Now)]**\n"
+                    "3️⃣ **Bot នឹងរៀបចំជូនលោកអ្នកស្វ័យប្រវត្តិនូវ:**\n"
+                    "   • Viral Khmer Hashtags (#fyp #viral #khmer...)\n"
+                    "   • ប្រអប់ Caption ចុចលើវាដើម្បី Copy ភ្លាមៗ (1-Tap Copy)\n"
+                    "   • ប៊ូតុងបើក **TikTok Studio Upload** ផ្ទាល់\n"
+                    "4️⃣ លោកអ្នកគ្រាន់តែចុច Copy រួចចុចប៊ូតុងបើក TikTok Upload Paste Caption ចូលជាការស្រេច! 🎉"
+                ),
+                "parse_mode": "Markdown",
+                "reply_markup": {
+                    "inline_keyboard": [
+                        [{"text": "📱 បើក TikTok Studio Upload", "url": "https://www.tiktok.com/creator-center/upload"}]
+                    ]
+                }
+            })
+            return
+
         # Friendly Guide for keywords like "ចង់ផ្សាយ"
         if lower_text in ["ចង់ផ្សាយ", "ផ្សាយ", "/post", "post", "ចង់ផុស", "ផុស", "/help", "help", "របៀបផ្សាយ"]:
             send_telegram_api("sendMessage", {
@@ -577,12 +602,19 @@ def handle_callback_query(callback: dict):
 
 def execute_broadcast(chat_id: str, message_id: int, session: dict):
     """រត់ការបាញ់ផ្សាយទៅកាន់ Channels ដែលបានជ្រើសរើស"""
-    send_telegram_api("editMessageText", {
-        "chat_id": chat_id,
-        "message_id": message_id,
-        "text": "🚀 **កំពុងដំណើរការផ្សព្វផ្សាយ (Broadcasting in progress...)...**\n\nសូមរង់ចាំបន្តិច...",
-        "parse_mode": "Markdown"
-    })
+    if message_id:
+        send_telegram_api("editMessageText", {
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "text": "🚀 **កំពុងដំណើរការផ្សព្វផ្សាយ (Broadcasting in progress...)...**\n\nសូមរង់ចាំបន្តិច...",
+            "parse_mode": "Markdown"
+        })
+    else:
+        send_telegram_api("sendMessage", {
+            "chat_id": chat_id,
+            "text": "🚀 **ចាប់ផ្ដើមដំណើរការផ្សព្វផ្សាយ (Broadcasting in progress...)...**\n\nសូមរង់ចាំបន្តិច...",
+            "parse_mode": "Markdown"
+        })
 
     cfg = load_config()
     user_token = cfg.get("facebook_user_access_token") or cfg.get("facebook_access_token")
@@ -652,10 +684,33 @@ def execute_broadcast(chat_id: str, message_id: int, session: dict):
             report_lines.append("⚠️ **Facebook Groups:** ក្រុមទាំងអស់ស្ថិតក្នុង Cooldown 24h នៅឡើយ")
 
     # ---------------- 3. TIKTOK ----------------
-    if session.get("dest_tiktok") and media_type == "video":
-        send_telegram_api("sendMessage", {"chat_id": chat_id, "text": "🎵 [3/3] កំពុងរៀបចំមាតិកាសម្រាប់ TikTok..."})
-        tt_payload = tiktok_service.generate_tiktok_share_payload(video_url=media_path, caption=caption)
-        report_lines.append(f"✅ **TikTok:** រួចរាល់! អាចបើក TikTok ផុសភ្លាមៗជាមួយ Hashtags សមស្រប")
+    if session.get("dest_tiktok"):
+        send_telegram_api("sendMessage", {"chat_id": chat_id, "text": "🎵 [3/3] កំពុងរៀបចំ Caption & Viral Hashtags សម្រាប់ TikTok..."})
+        tt_payload = tiktok_service.generate_tiktok_share_payload(video_url=(str(media_path) if media_path else ""), caption=caption)
+        formatted_tt_caption = tt_payload.get("caption", caption)
+
+        tt_text = (
+            "🎵 **TikTok Studio Card (មាតិការួចរាល់សម្រាប់ TikTok):**\n\n"
+            "📋 **Caption & Viral Hashtags (ចុចលើប្រអប់ខាងក្រោមដើម្បី Copy ភ្លាមៗ):**\n"
+            f"```\n{formatted_tt_caption}\n```\n\n"
+            "👉 **របៀបផុសក្នុង TikTok (3 ជំហានងាយៗ):**\n"
+            "1️⃣ ចុចលើប្រអប់ Caption ខាងលើដើម្បី Copy (1-Tap Copy)\n"
+            "2️⃣ ចុចប៊ូតុង **[📱 បើក TikTok Studio Upload]** ខាងក្រោម\n"
+            "3️⃣ Upload វីដេអូ ឬរូបភាព រួច Paste Caption ចូលជាការស្រេច! 🎉"
+        )
+        send_telegram_api("sendMessage", {
+            "chat_id": chat_id,
+            "text": tt_text,
+            "parse_mode": "Markdown",
+            "reply_markup": {
+                "inline_keyboard": [
+                    [
+                        {"text": "📱 បើក TikTok Studio Upload", "url": "https://www.tiktok.com/creator-center/upload"}
+                    ]
+                ]
+            }
+        })
+        report_lines.append("✅ **TikTok:** បានរៀបចំ Caption + Viral Hashtags និងប៊ូតុង Upload រួចរាល់!")
 
     report_lines.append("\n🎉 **ការផ្សព្វផ្សាយត្រូវបានបញ្ចប់សព្វគ្រប់!**")
     final_report = "\n".join(report_lines)
