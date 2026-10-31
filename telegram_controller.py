@@ -21,6 +21,7 @@ import requests
 import threading
 import re
 import tempfile
+import html
 from typing import Dict, Any, Optional
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -672,7 +673,7 @@ def execute_broadcast(chat_id: str, message_id: int, session: dict):
                 media_path = auto_url
                 caption = clean_c
 
-        report_lines = ["📊 **របាយការណ៍ផ្សព្វផ្សាយ (Broadcast Report):**\n"]
+        report_lines = ["📊 <b>របាយការណ៍ផ្សព្វផ្សាយ (Broadcast Report):</b>\n"]
 
         # ---------------- 1. FACEBOOK PAGES ----------------
         if session.get("dest_pages"):
@@ -704,9 +705,23 @@ def execute_broadcast(chat_id: str, message_id: int, session: dict):
                     video_path=(media_path if media_type == "video" and not is_url else None)
                 )
                 success_pages = sum(1 for p in res_pages if p.get("success"))
-                report_lines.append(f"✅ **Facebook Pages:** ជោគជ័យ {success_pages}/{len(res_pages)} Pages ({media_desc})")
+                report_lines.append(f"✅ <b>Facebook Pages:</b> ជោគជ័យ {success_pages}/{len(res_pages)} Pages ({media_desc})")
+                
+                # បង្ហាញ Link ទៅកាន់ Page ឬ Post ផ្ទាល់ដើម្បីឱ្យ User អាចចុចផ្ទៀងផ្ទាត់បានភ្លាមៗ
+                live_page_links = []
+                for p in res_pages:
+                    if p.get("success"):
+                        p_name = html.escape(str(p.get("page_name", "Page")).strip())
+                        post_id = p.get("post_id")
+                        page_fb_id = p.get("page_id")
+                        target_url = f"https://www.facebook.com/{post_id}" if post_id else f"https://www.facebook.com/{page_fb_id}"
+                        live_page_links.append(f"  • <a href=\"{target_url}\">{p_name}</a> (Live)")
+                        if len(live_page_links) >= 3:
+                            break
+                if live_page_links:
+                    report_lines.append("  🔗 <b>Post ជាក់ស្ដែងលើ Pages:</b>\n" + "\n".join(live_page_links))
             else:
-                report_lines.append("⚠️ **Facebook Pages:** គ្មាន Page សម្រាប់ផុស")
+                report_lines.append("⚠️ <b>Facebook Pages:</b> គ្មាន Page សម្រាប់ផុស")
 
         # ---------------- 2. FACEBOOK GROUPS ----------------
         if session.get("dest_groups"):
@@ -715,12 +730,17 @@ def execute_broadcast(chat_id: str, message_id: int, session: dict):
             
             if matched_groups:
                 posted_count = 0
-                for g in matched_groups:
+                group_items = []
+                for idx, g in enumerate(matched_groups, 1):
                     facebook_group_service.mark_group_posted(g.get("id"))
                     posted_count += 1
-                report_lines.append(f"✅ **Facebook Groups:** បានចាត់ចែងផុសចូល {posted_count} ក្រុម (Niche: '{niche}')")
+                    g_name = html.escape(str(g.get("name") or f"Group {g.get('id')}").strip())
+                    g_url = g.get("url") or f"https://www.facebook.com/groups/{g.get('id')}"
+                    group_items.append(f"  {idx}. <a href=\"{g_url}\">{g_name}</a>")
+                
+                report_lines.append(f"✅ <b>Facebook Groups ({posted_count} ក្រុម - Niche: '{niche}'):</b>\n" + "\n".join(group_items))
             else:
-                report_lines.append("⚠️ **Facebook Groups:** ក្រុមទាំងអស់ស្ថិតក្នុង Cooldown 24h នៅឡើយ")
+                report_lines.append("⚠️ <b>Facebook Groups:</b> ក្រុមទាំងអស់ស្ថិតក្នុង Cooldown 24h នៅឡើយ")
 
         # ---------------- 3. TIKTOK ----------------
         if session.get("dest_tiktok"):
@@ -749,16 +769,24 @@ def execute_broadcast(chat_id: str, message_id: int, session: dict):
                     ]
                 }
             })
-            report_lines.append("✅ **TikTok:** បានរៀបចំ Caption + Viral Hashtags និងប៊ូតុង Upload រួចរាល់!")
+            report_lines.append("✅ <b>TikTok:</b> បានរៀបចំ Caption + Viral Hashtags និងប៊ូតុង Upload រួចរាល់!")
 
-        report_lines.append("\n🎉 **ការផ្សព្វផ្សាយត្រូវបានបញ្ចប់សព្វគ្រប់!**")
+        report_lines.append("\n🎉 <b>ការផ្សព្វផ្សាយត្រូវបានបញ្ចប់សព្វគ្រប់!</b>")
         final_report = "\n".join(report_lines)
 
-        send_telegram_api("sendMessage", {
+        resp = send_telegram_api("sendMessage", {
             "chat_id": chat_id,
             "text": final_report,
-            "parse_mode": "Markdown"
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True
         })
+        if not resp.get("ok"):
+            # Fallback to plain text if HTML entity parsing encounters any issue
+            clean_text = re.sub(r'<[^>]+>', '', final_report)
+            send_telegram_api("sendMessage", {
+                "chat_id": chat_id,
+                "text": clean_text
+            })
     except Exception as e:
         print(f"⚠️ Error executing broadcast: {e}")
         send_telegram_api("sendMessage", {
