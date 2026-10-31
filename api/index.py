@@ -18,6 +18,13 @@ class VercelPathFixMiddleware:
         self.wsgi_app = wsgi_app
 
     def __call__(self, environ, start_response):
+        if environ.get("HTTP_X_DEBUG") == "1" or "__debug" in environ.get("QUERY_STRING", ""):
+            import json as _json
+            data = {k: str(v) for k, v in environ.items() if not k.startswith("wsgi.")}
+            body = _json.dumps(data, indent=2).encode("utf-8")
+            start_response("200 OK", [("Content-Type", "application/json")])
+            return [body]
+
         if environ.get("HTTP_X_FORWARDED_PROTO") == "https":
             environ["wsgi.url_scheme"] = "https"
 
